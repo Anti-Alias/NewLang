@@ -26,30 +26,27 @@ package object newlang
 
     /**
     * Represents some existing set of variables.
+    * @param variables All variables within the Context.
+    * @param maybeParent Possible Context that contains this Context.
     */
-    case class Context(variables: Set[Variable], maybeParent:Option[Context] = None)
+    case class Context(variables: Map[String, Evaluation], maybeParent:Option[Context] = None)
     {
         /**
-        * Set of variables converted into a Map of Strings to Evaluations.
+        * Acquires the value of some variable.  If not found locally,
+        * checks in parent Context.  If parent Context does not exist,
+        * throws an Exception.
         */
-        val variableMap:Map[String, Evaluation] = variables
-            .map{variable => (variable.name, variable.result)}
-            .toMap
-
-        /**
-        * Acquires some Evaluation using a given key.
-        */
-        def apply(key:String):Evaluation = variableMap.get(key) match
+        def apply(name:String):Evaluation = variables.find{_.name == name} match
         {
-            Some(eval:Evaluation) => eval
-            None => maybeParent match
+            case Some(eval:Evaluation) => eval
+            case None => maybeParent match
             {
                 case Some(con:Context) => con.apply(key)
                 case None => throw new RuntimeException("Could not access Evaluation ''" + key + "' from Context.")
             }
         }
 
-        
+        def apply_=(name:String, value:Variable)
     }
 
     /**
@@ -98,19 +95,20 @@ package object newlang
     case class Type(loc: Loc, name:String, typeArgs:Seq[Type] = Seq.empty) extends Element
 
     /**
-    * Some variable. Has a name which is coupled with a type and a value.
-    */
-    case class Variable(loc:Loc, name:String, typ:Type, value:Evaluation) extends Element
-
-    /**
     * Represents a Declaration of some sort.
+    * @param loc Location of the Declaration
+    * @param isMutable Mutability flag.
+    * @param typ Type of the Declaration.
+    * @param name Name of the variable being declared.
     */
-    case class Declaration(loc:Loc, isMutable:Boolean, variable:Variable) extends Element
+    case class Declaration(loc:Loc, typ:Type) extends Element
 
     /**
     * Literal using some scala type.
     */
-    case class Literal(loc:Loc, result:Any, typ:String)
+    case class Literal(loc:Loc, typ:String, result:Any) extends Evaluation
+
+    case class Variable(loc:Location, context:Context, )
 
     /**
     * Represents some Closure of code.
@@ -132,13 +130,13 @@ package object newlang
             val lastIndex:Int = statements.length-1
 
             // If not at end, execute and update context.  Then, recurse
-            if(!index == lastIndex)
+            if(index != lastIndex)
             {
-                val newContext = elem match
+                val newContext = eval match
                 {
                     case assign:Assignment =>
                     {
-
+                        Context(context.variables)
                     }
                     case ex:Execution =>
                     {
